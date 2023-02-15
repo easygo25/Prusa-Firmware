@@ -3,20 +3,6 @@
 
 #include "boards.h"
 
-#if !MB(5DPRINT)
-#define X_MS1_PIN -1
-#define X_MS2_PIN -1
-#define Y_MS1_PIN -1
-#define Y_MS2_PIN -1
-#define Z_MS1_PIN -1
-#define Z_MS2_PIN -1
-#define E0_MS1_PIN -1
-#define E0_MS2_PIN -1
-#define E1_MS1_PIN -1
-#define E1_MS2_PIN -1
-#define DIGIPOTSS_PIN -1
-#endif
-
 #define LARGE_FLASH true
 
 /*****************************************************************
@@ -37,6 +23,11 @@
 
 #ifndef KNOWN_BOARD
 #error Unknown MOTHERBOARD value in configuration.h
+#endif
+
+#if !defined(SDA_PIN) && (defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__))
+#define SDA_PIN 20
+#define SCL_PIN 21
 #endif
 
 //List of pins which to ignore when asked to change by gcode, 0 and 1 are RX and TX, do not mess with those!

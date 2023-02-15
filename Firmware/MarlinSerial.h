@@ -28,17 +28,19 @@
 #endif
 
 // The presence of the UBRRH register is used to detect a UART.
-#define UART_PRESENT(port) ((port == 0 && (defined(UBRRH) || defined(UBRR0H))) || \
-						(port == 1 && defined(UBRR1H)) || (port == 2 && defined(UBRR2H)) || \
-						(port == 3 && defined(UBRR3H)))				
+#if ((SERIAL_PORT == 0 && (defined(UBRRH) || defined(UBRR0H))) || \
+	(SERIAL_PORT == 1 && defined(UBRR1H)) || \
+	(SERIAL_PORT == 2 && defined(UBRR2H)) || \
+	(SERIAL_PORT == 3 && defined(UBRR3H)))
+#define HAS_UART
+#endif
 						
 // These are macros to build serial port register names for the selected SERIAL_PORT (C preprocessor
 // requires two levels of indirection to expand macro values properly)
-#define SERIAL_REGNAME(registerbase,number,suffix) SERIAL_REGNAME_INTERNAL(registerbase,number,suffix)
 #if SERIAL_PORT == 0 && (!defined(UBRR0H) || !defined(UDR0)) // use un-numbered registers if necessary
-#define SERIAL_REGNAME_INTERNAL(registerbase,number,suffix) registerbase##suffix
+#define SERIAL_REGNAME(registerbase,number,suffix) _REGNAME_SHORT(registerbase, suffix)
 #else
-#define SERIAL_REGNAME_INTERNAL(registerbase,number,suffix) registerbase##number##suffix
+#define SERIAL_REGNAME(registerbase,number,suffix) _REGNAME(registerbase, number, suffix)
 #endif
 
 // Registers used by MarlinSerial class (these are expanded 
@@ -82,7 +84,7 @@ struct ring_buffer
   int tail;
 };
 
-#if UART_PRESENT(SERIAL_PORT)
+#ifdef HAS_UART
   extern ring_buffer rx_buffer;
 #endif
 
@@ -96,7 +98,7 @@ class MarlinSerial //: public Stream
     static int read(void);
     static void flush(void);
     
-    static FORCE_INLINE int available(void)
+    static /*FORCE_INLINE*/ int available(void)
     {
       return (unsigned int)(RX_BUFFER_SIZE + rx_buffer.head - rx_buffer.tail) % RX_BUFFER_SIZE;
     }
@@ -184,14 +186,14 @@ class MarlinSerial //: public Stream
     
   public:
     
-    static FORCE_INLINE void write(const char *str)
+    static /*FORCE_INLINE*/ void write(const char *str)
     {
       while (*str)
         write(*str++);
     }
 
 
-    static FORCE_INLINE void write(const uint8_t *buffer, size_t size)
+    static /*FORCE_INLINE*/ void write(const uint8_t *buffer, size_t size)
     {
       while (size--)
         write(*buffer++);

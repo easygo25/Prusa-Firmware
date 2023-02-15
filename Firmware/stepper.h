@@ -37,12 +37,6 @@ void st_init();
 
 void isr();
 
-#ifdef LIN_ADVANCE
-  void advance_isr();
-  void advance_isr_scheduler();
-  void clear_current_adv_vars(); //Used to reset the built up pretension and remaining esteps on filament change.
-#endif
-
 // Block until all buffered steps are executed
 void st_synchronize();
 
@@ -62,15 +56,7 @@ float st_get_position_mm(uint8_t axis);
 
 // Call this function just before re-enabling the stepper driver interrupt and the global interrupts
 // to avoid a stepper timer overflow.
-FORCE_INLINE void st_reset_timer()
-{
-  // Clear a possible pending interrupt on OCR1A overflow.
-  TIFR1 |= 1 << OCF1A;
-  // Reset the counter.
-  TCNT1 = 0;
-  // Wake up after 1ms from now.
-  OCR1A = 2000;
-}
+void st_reset_timer();
 
 void checkHitEndstops(); //call from somewhere to create an serial error message with the locations the endstops where hit, in case they were triggered
 bool endstops_hit_on_purpose(); //avoid creation of the message, i.e. after homing and before a routine call of checkHitEndstops();
@@ -83,13 +69,7 @@ void invert_z_endstop(bool endstop_invert);
 
 void checkStepperErrors(); //Print errors detected by the stepper
 
-void finishAndDisableSteppers();
-
 extern block_t *current_block;  // A pointer to the block currently being traced
-extern bool x_min_endstop;
-extern bool x_max_endstop;
-extern bool y_min_endstop;
-extern bool y_max_endstop;
 extern volatile long count_position[NUM_AXIS];
 
 void quickStop();
@@ -106,7 +86,5 @@ void microstep_readings();
 #ifdef BABYSTEPPING
   void babystep(const uint8_t axis,const bool direction); // perform a short step with a single stepper motor, outside of any convention
 #endif
-     
-
 
 #endif

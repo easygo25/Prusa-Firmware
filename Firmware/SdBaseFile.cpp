@@ -394,7 +394,10 @@ bool SdBaseFile::make83Name(const char* str, uint8_t* name, const char** ptr) {
       i = 8;   // place for extension
     } else {
       // illegal FAT characters
-      PGM_P p = PSTR("|<>^+=?/[];,*\"\\");
+      //PGM_P p = PSTR("|<>^+=?/[];,*\"\\");
+      // 2019-08-27 really?
+      // Microsoft defines, that only a subset of these characters is not allowed.
+      PGM_P p = PSTR("|<>?/*\"\\");
       uint8_t b;
       while ((b = pgm_read_byte(p++))) if (b == c) goto fail;
       // check size and only allow ASCII printable characters
@@ -527,9 +530,9 @@ bool SdBaseFile::mkdir(SdBaseFile* parent, const uint8_t dname[11]) {
   * \return The value one, true, is returned for success and
   * the value zero, false, is returned for failure.
   */
-  bool SdBaseFile::open(const char* path, uint8_t oflag) {
-    return open(cwd_, path, oflag);
-  }
+bool SdBaseFile::open(const char* path, uint8_t oflag) {
+  return open(cwd_, path, oflag);
+}
 //------------------------------------------------------------------------------
 /** Open a file or directory by name.
  *
@@ -1012,7 +1015,7 @@ void SdBaseFile::printFatTime( uint16_t fatTime) {
  * the value zero, false, is returned for failure.
  */
 bool SdBaseFile::printName() {
-  char name[13];
+  char name[FILENAME_LENGTH];
   if (!getFilename(name)) return false;
   MYSERIAL.print(name);
   return true;

@@ -11,8 +11,6 @@
 extern FILE _lcdout;
 
 #define lcdout (&_lcdout)
-extern int lcd_putchar(char c, FILE *stream);
-
 
 extern void lcd_init(void);
 
@@ -20,12 +18,9 @@ extern void lcd_refresh(void);
 
 extern void lcd_refresh_noclear(void);
 
-
-
 extern void lcd_clear(void);
 
 extern void lcd_home(void);
-
 
 /*extern void lcd_no_display(void);
 extern void lcd_display(void);
@@ -42,42 +37,49 @@ extern void lcd_no_autoscroll(void);*/
 
 extern void lcd_set_cursor(uint8_t col, uint8_t row);
 
+/// @brief Change the cursor column position while preserving the current row position
+/// @param col column number, ranges from 0 to LCD_WIDTH - 1
+void lcd_set_cursor_column(uint8_t col);
+
 extern void lcd_createChar_P(uint8_t, const uint8_t*);
 
 
+// char c is non-standard, however it saves 1B on stack
+extern int lcd_putc(char c);
+extern int lcd_putc_at(uint8_t c, uint8_t r, char ch);
 
-extern int lcd_putc(int c);
 extern int lcd_puts_P(const char* str);
 extern int lcd_puts_at_P(uint8_t c, uint8_t r, const char* str);
 extern int lcd_printf_P(const char* format, ...);
 extern void lcd_space(uint8_t n);
 
 extern void lcd_printNumber(unsigned long n, uint8_t base);
-extern void lcd_printFloat(double number, uint8_t digits);
 
 extern void lcd_print(const char*);
+extern char lcd_print_pad(const char* s, uint8_t len);
+
+/// @brief print a string from PROGMEM with left-adjusted padding
+/// @param s string from PROGMEM.
+/// @param len maximum number of characters to print, including padding. Ranges from 0 to LCD_WIDTH.
+/// @return number of padded bytes. 0 means there was no padding.
+uint8_t lcd_print_pad_P(const char* s, uint8_t len);
 extern void lcd_print(char, int = 0);
 extern void lcd_print(unsigned char, int = 0);
 extern void lcd_print(int, int = 10);
 extern void lcd_print(unsigned int, int = 10);
 extern void lcd_print(long, int = 10);
 extern void lcd_print(unsigned long, int = 10);
-extern void lcd_print(double, int = 2);
 
+//! @brief Clear screen
 #define ESC_2J     "\x1b[2J"
+//! @brief Show cursor
 #define ESC_25h    "\x1b[?25h"
+//! @brief Hide cursor
 #define ESC_25l    "\x1b[?25l"
+//! @brief Set cursor to
+//! @param c column
+//! @param r row
 #define ESC_H(c,r) "\x1b["#r";"#c"H"
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -114,16 +116,10 @@ extern LongTimer lcd_timeoutToStatus;
 
 extern uint32_t lcd_next_update_millis;
 
-extern uint8_t lcd_status_update_delay;
-
 extern lcd_longpress_func_t lcd_longpress_func;
-
-extern lcd_charsetup_func_t lcd_charsetup_func;
+extern bool lcd_longpress_trigger;
 
 extern lcd_lcdupdate_func_t lcd_lcdupdate_func;
-
-
-
 
 
 
@@ -133,13 +129,6 @@ extern void lcd_beeper_quick_feedback(void);
 
 //Cause an LCD refresh, and give the user visual or audible feedback that something has happened
 extern void lcd_quick_feedback(void);
-
-
-
-
-
-
-
 
 extern void lcd_update(uint8_t lcdDrawUpdateOverride);
 
@@ -169,29 +158,6 @@ public:
 private:
     bool m_updateEnabled;
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/**
-* Implementation of the LCD display routines for a Hitachi HD44780 display. These are common LCD character displays.
-* When selecting the Russian language, a slightly different LCD implementation is used to handle UTF8 characters.
-**/
 
 
 ////////////////////////////////////
@@ -229,32 +195,29 @@ private:
 #define encrot3 1
 
 
-
-
 //Custom characters defined in the first 8 characters of the LCD
-#define LCD_STR_BEDTEMP     "\x00"
-#define LCD_STR_DEGREE      "\x01"
-#define LCD_STR_THERMOMETER "\x02"
-#define LCD_STR_UPLEVEL     "\x03"
-#define LCD_STR_REFRESH     "\x04"
-#define LCD_STR_FOLDER      "\x05"
-#define LCD_STR_FEEDRATE    "\x06"
-#define LCD_STR_CLOCK       "\x07"
-#define LCD_STR_ARROW_UP    "\x0B"
-#define LCD_STR_ARROW_DOWN  "\x01"
-#define LCD_STR_ARROW_RIGHT "\x7E" //from the default character set
+#define LCD_STR_BEDTEMP      "\x00"
+#define LCD_STR_DEGREE       "\x01"
+#define LCD_STR_THERMOMETER  "\x02"
+#define LCD_STR_UPLEVEL      "\x03"
+#define LCD_STR_REFRESH      "\x04"
+#define LCD_STR_FOLDER       "\x05"
+#define LCD_STR_FEEDRATE     "\x06"
+#define LCD_STR_ARROW_2_DOWN "\x06"
+#define LCD_STR_CLOCK        "\x07"
+#define LCD_STR_CONFIRM      "\x07"
+#define LCD_STR_ARROW_RIGHT  "\x7E" //from the default character set
+#define LCD_STR_SOLID_BLOCK  "\xFF"  //from the default character set
 
 extern void lcd_set_custom_characters(void);
-extern void lcd_set_custom_characters_arrows(void);
-extern void lcd_set_custom_characters_progress(void);
 extern void lcd_set_custom_characters_nextpage(void);
-extern void lcd_set_custom_characters_degree(void);
 
-//! @brief Consume click event
+//! @brief Consume click and longpress event
 inline void lcd_consume_click()
 {
     lcd_button_pressed = 0;
     lcd_buttons &= 0xff^EN_C;
+    lcd_longpress_trigger = 0;
 }
 
 
