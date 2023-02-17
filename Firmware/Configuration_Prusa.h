@@ -20,12 +20,12 @@
 #define DEVELOPER
 
 // Printer name
-#define CUSTOM_MENDEL_NAME "Prusa i3 MK3S"
+#define CUSTOM_MENDEL_NAME "Prusa MK3S BMG"
 
 // Electronics
 #define MOTHERBOARD BOARD_EINSY_1_0a
 #define STEEL_SHEET
-#define HAS_SECOND_SERIAL_PORT
+//#define HAS_SECOND_SERIAL_PORT
 
 // PSU
 #define PSU_Delta                                 // uncomment if DeltaElectronics PSU installed
@@ -44,7 +44,7 @@
 
 // Steps per unit {X,Y,Z,E}
 //#define DEFAULT_AXIS_STEPS_PER_UNIT   {100,100,3200/8,140}
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {100,100,3200/8,280}
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {80,80,3200/8,830}
 //#define DEFAULT_AXIS_STEPS_PER_UNIT   {100,100,3200/8,560}
 
 // Endstop inverting
@@ -152,8 +152,8 @@
 //#define MENU_SERIAL_DUMP        // Enable "Memory dump" in Settings menu
 
 // Filament sensor
-#define FILAMENT_SENSOR
-#define FILAMENT_SENSOR_TYPE FSENSOR_IR_ANALOG
+// #define FILAMENT_SENSOR
+// #define FILAMENT_SENSOR_TYPE FSENSOR_IR_ANALOG
 #define FSENSOR_PROBING
 
 // Backlash - 
