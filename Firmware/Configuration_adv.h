@@ -280,7 +280,7 @@
 #define LIN_ADVANCE
 
 #ifdef LIN_ADVANCE
-  #define LA_K_DEF    0        // Default K factor (Unit: mm compression per 1mm/s extruder speed)
+  #define LA_K_DEF    0.1      // Default K factor (Unit: mm compression per 1mm/s extruder speed)
   #define LA_K_MAX    10       // Maximum acceptable K factor (exclusive, see notes in planner.cpp:plan_buffer_line)
   #define LA_LA10_MIN LA_K_MAX // Lin. Advance 1.0 threshold value (inclusive)
   //#define LA_FLOWADJ         // Adjust LA along with flow/M221 for uniform width
