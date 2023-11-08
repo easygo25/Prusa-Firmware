@@ -9,13 +9,33 @@
 
 namespace MMU2 {
 
-void MoveE(float delta, float feedRate) {
+static void planner_line_to_current_position(float feedRate_mm_s){
+     plan_buffer_line_curposXYZE(feedRate_mm_s);
+}
+
+static void planner_line_to_current_position_sync(float feedRate_mm_s){
+    planner_line_to_current_position(feedRate_mm_s);
+    planner_synchronize();
+}
+
+void extruder_move(float delta, float feedRate) {
     current_position[E_AXIS] += delta;
     planner_line_to_current_position(feedRate);
 }
 
-float MoveRaiseZ(float delta) {
+float move_raise_z(float delta) {
     return raise_z(delta);
+}
+
+void planner_abort_queued_moves() {
+    planner_abort_hard();
+
+    // Unblock the planner. This should be safe in the
+    // toolchange context. Currently we are mainly aborting
+    // excess E-moves after detecting filament during toolchange.
+    // If a MMU error is reported, the planner must be unblocked
+    // as well so the extruder can be parked safely.
+    planner_aborted = false;
 }
 
 void planner_synchronize() {
@@ -30,21 +50,16 @@ float planner_get_machine_position_E_mm(){
     return current_position[E_AXIS];
 }
 
+float stepper_get_machine_position_E_mm(){
+    return st_get_position_mm(E_AXIS);
+}
+
 float planner_get_current_position_E(){
     return current_position[E_AXIS];
 }
 
 void planner_set_current_position_E(float e){
         current_position[E_AXIS] = e;
-}
-
-void planner_line_to_current_position(float feedRate_mm_s){
-     plan_buffer_line_curposXYZE(feedRate_mm_s);
-}
-
-void planner_line_to_current_position_sync(float feedRate_mm_s){
-    planner_line_to_current_position(feedRate_mm_s);
-    planner_synchronize();
 }
 
 pos3d planner_current_position(){
@@ -86,6 +101,18 @@ void marlin_idle(bool b){
     manage_inactivity(b);
 }
 
+void marlin_refresh_print_state_in_ram(){
+    refresh_print_state_in_ram();
+}
+
+void marlin_clear_print_state_in_ram(){
+    clear_print_state_in_ram();
+}
+
+void marlin_stop_and_save_print_to_ram(){
+    stop_and_save_print_to_ram(0,0);
+}
+
 int16_t thermal_degTargetHotend() {
     return degTargetHotend(0);
 }
@@ -115,10 +142,6 @@ void Disable_E0(){ disable_e0(); }
 
 bool all_axes_homed(){
     return axis_known_position[X_AXIS] && axis_known_position[Y_AXIS];
-}
-
-bool cutter_enabled(){
-    return eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED) == EEPROM_MMU_CUTTER_ENABLED_enabled;
 }
 
 } // namespace MMU2

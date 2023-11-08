@@ -14,20 +14,16 @@ const uint16_t FW_VERSION_NR[4] PROGMEM = {
     FW_MAJOR,
     FW_MINOR,
     FW_REVISION,
-#ifndef FW_FLAVOR
-    FW_COMMIT_NR
-#else
-#   if FW_DEV_VERSION == FW_VERSION_ALPHA
-    FIRMWARE_REVISION_ALPHA + FW_FLAVERSION
-#   elif FW_DEV_VERSION == FW_VERSION_BETA
-    FIRMWARE_REVISION_BETA + FW_FLAVERSION
-#   elif FW_DEV_VERSION == FW_VERSION_RC
-    FIRMWARE_REVISION_RC + FW_FLAVERSION
-#   elif FW_DEV_VERSION == FW_VERSION_GOLD
-    0
-#   endif
-#endif
+    FW_TWEAK,
 };
+
+const char FW_VERSION_HASH[] PROGMEM = FW_COMMIT_HASH;
+static_assert(sizeof(FW_VERSION_HASH) == FW_COMMIT_HASH_LENGTH + 1);
+
+const char* FW_VERSION_HASH_P()
+{
+    return FW_VERSION_HASH;
+}
 
 const char* FW_VERSION_STR_P()
 {
@@ -159,7 +155,7 @@ inline bool strncmp_PP(const char *p1, const char *p2, uint8_t n)
 				return -1;
 			if (pgm_read_byte(p1) > pgm_read_byte(p2))
 				return 1;
-		}            
+		}
     }
     return 0;
 }
@@ -240,43 +236,26 @@ void update_current_firmware_version_to_eeprom()
     eeprom_update_word((uint16_t*)EEPROM_FIRMWARE_VERSION_FLAVOR,   (uint16_t)pgm_read_word(&FW_VERSION_NR[3]));
 }
 
-ClNozzleDiameter oNozzleDiameter=ClNozzleDiameter::_Diameter_400;
-ClCheckMode oCheckMode=ClCheckMode::_None;
-ClCheckModel oCheckModel=ClCheckModel::_None;
-ClCheckVersion oCheckVersion=ClCheckVersion::_None;
-ClCheckGcode oCheckGcode=ClCheckGcode::_None;
+ClNozzleDiameter oNozzleDiameter;
+ClCheckMode oCheckMode;
+ClCheckModel oCheckModel;
+ClCheckVersion oCheckVersion;
+ClCheckGcode oCheckGcode;
 
 void fCheckModeInit() {
-    oCheckMode = (ClCheckMode)eeprom_read_byte((uint8_t *)EEPROM_CHECK_MODE);
-    if (oCheckMode == ClCheckMode::_Undef) {
-        oCheckMode = ClCheckMode::_Warn;
-        eeprom_update_byte((uint8_t *)EEPROM_CHECK_MODE, (uint8_t)oCheckMode);
-    }
+    oCheckMode = (ClCheckMode)eeprom_init_default_byte((uint8_t *)EEPROM_CHECK_MODE, (uint8_t)ClCheckMode::_Warn);
+
     if (farm_mode) {
         oCheckMode = ClCheckMode::_Strict;
-        eeprom_init_default_word((uint16_t *)EEPROM_NOZZLE_DIAMETER_uM, EEPROM_NOZZLE_DIAMETER_uM_DEFAULT);
+        eeprom_update_byte((uint8_t *)EEPROM_CHECK_MODE, (uint8_t)ClCheckMode::_Strict);
     }
-    oNozzleDiameter = (ClNozzleDiameter)eeprom_read_byte((uint8_t *)EEPROM_NOZZLE_DIAMETER);
-    if ((oNozzleDiameter == ClNozzleDiameter::_Diameter_Undef) && !farm_mode) {
-        oNozzleDiameter = ClNozzleDiameter::_Diameter_400;
-        eeprom_update_byte((uint8_t *)EEPROM_NOZZLE_DIAMETER, (uint8_t)oNozzleDiameter);
-        eeprom_update_word((uint16_t *)EEPROM_NOZZLE_DIAMETER_uM, EEPROM_NOZZLE_DIAMETER_uM_DEFAULT);
-    }
-    oCheckModel = (ClCheckModel)eeprom_read_byte((uint8_t *)EEPROM_CHECK_MODEL);
-    if (oCheckModel == ClCheckModel::_Undef) {
-        oCheckModel = ClCheckModel::_Warn;
-        eeprom_update_byte((uint8_t *)EEPROM_CHECK_MODEL, (uint8_t)oCheckModel);
-    }
-    oCheckVersion = (ClCheckVersion)eeprom_read_byte((uint8_t *)EEPROM_CHECK_VERSION);
-    if (oCheckVersion == ClCheckVersion::_Undef) {
-        oCheckVersion = ClCheckVersion::_Warn;
-        eeprom_update_byte((uint8_t *)EEPROM_CHECK_VERSION, (uint8_t)oCheckVersion);
-    }
-    oCheckGcode = (ClCheckGcode)eeprom_read_byte((uint8_t *)EEPROM_CHECK_GCODE);
-    if (oCheckGcode == ClCheckGcode::_Undef) {
-        oCheckGcode = ClCheckGcode::_Warn;
-        eeprom_update_byte((uint8_t *)EEPROM_CHECK_GCODE, (uint8_t)oCheckGcode);
-    }
+
+    oNozzleDiameter = (ClNozzleDiameter)eeprom_init_default_byte((uint8_t *)EEPROM_NOZZLE_DIAMETER, (uint8_t)ClNozzleDiameter::_Diameter_400);
+    eeprom_init_default_word((uint16_t *)EEPROM_NOZZLE_DIAMETER_uM, EEPROM_NOZZLE_DIAMETER_uM_DEFAULT);
+
+    oCheckModel = (ClCheckModel)eeprom_init_default_byte((uint8_t *)EEPROM_CHECK_MODEL, (uint8_t)ClCheckModel::_Warn);
+    oCheckVersion = (ClCheckVersion)eeprom_init_default_byte((uint8_t *)EEPROM_CHECK_VERSION, (uint8_t)ClCheckVersion::_Warn);
+    oCheckGcode = (ClCheckGcode)eeprom_init_default_byte((uint8_t *)EEPROM_CHECK_GCODE, (uint8_t)ClCheckGcode::_Warn);
 }
 
 static void render_M862_warnings(const char* warning, const char* strict, uint8_t check)
@@ -424,16 +403,19 @@ return pStrBegin;
 }
 
 void printer_smodel_check(const char *pStrPos, const char *actualPrinterSModel) {
-char* pResult;
-size_t nLength,nPrinterNameLength;
+    char* pResult;
+    size_t nLength;
+    size_t aLength;
 
-nPrinterNameLength = strlen_P(actualPrinterSModel);
-pResult=code_string(pStrPos,&nLength);
+    pResult=code_string(pStrPos,&nLength);
+    if(pResult != NULL) {
+        aLength=strlen_P(actualPrinterSModel);
+        if(aLength > nLength) nLength = aLength;
 
-if(pResult != NULL && nLength == nPrinterNameLength) {
-     // Only compare them if the lengths match
-     if (strncmp_P(pResult, actualPrinterSModel, nLength) == 0) return;
-}
+        // Only compare first 6 chars on MK3|MK3S if string longer than 4 characters
+        if (nLength > 4 && strncmp_P(pResult, PSTR("MK3"), 3) == 0) nLength = 6;
+        if (strncmp_P(pResult, actualPrinterSModel, nLength) == 0) return;
+    }
 
     render_M862_warnings(
         _T(MSG_GCODE_DIFF_PRINTER_CONTINUE)

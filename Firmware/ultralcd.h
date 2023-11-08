@@ -17,11 +17,20 @@ void ultralcd_init();
 #define LCD_STATUS_NONE     0 //< No alert message set
 
 #define LCD_STATUS_INFO_TIMEOUT 20000
+#define LCD_STATUS_DELAYED_TIMEOUT 4000
 
 // Set the current status message (equivalent to LCD_STATUS_NONE)
+void lcdui_print_status_line(void);
+void lcd_clearstatus();
+
+/// @brief Copy the contents of lcd_status_message
+/// @param buf destination buffer
+void lcd_getstatus(char buf[LCD_WIDTH]);
+void lcd_insert_char_into_status(uint8_t position, const char message);
 void lcd_setstatus(const char* message);
 void lcd_setstatuspgm(const char* message);
 void lcd_setstatus_serial(const char* message);
+void lcd_reset_status_message_timeout();
 
 //! return to the main status screen and display the alert message
 //! Beware - it has sideeffects:
@@ -48,9 +57,9 @@ void lcd_pause_usb_print();
 void lcd_resume_print();
 void lcd_print_stop(); // interactive print stop
 void print_stop(bool interactive=false);
-#ifdef TEMP_MODEL
-void lcd_temp_model_cal();
-#endif //TEMP_MODEL
+#ifdef THERMAL_MODEL
+void lcd_thermal_model_cal();
+#endif //THERMAL_MODEL
 void lcd_load_filament_color_check();
 
 extern void lcd_belttest();
@@ -111,19 +120,17 @@ extern void lcd_bed_calibration_show_result(BedSkewOffsetDetectionResultType res
 enum class LcdCommands : uint_least8_t
 {
 	Idle,
-	LoadFilament,
 	StopPrint,
 	LongPause,
 	PidExtruder,
 	Layer1Cal,
-#ifdef TEMP_MODEL
-    TempModel,
-#endif //TEMP_MODEL
+#ifdef THERMAL_MODEL
+    ThermalModel,
+#endif //THERMAL_MODEL
     NozzleCNG,
 };
 
 extern LcdCommands lcd_commands_type;
-extern int8_t FSensorStateMenu;
 
 enum class CustomMsg : uint_least8_t
 {
@@ -158,18 +165,15 @@ extern bool FarmOrUserECool();
 
 #if defined(FILAMENT_SENSOR) && (FILAMENT_SENSOR_TYPE == FSENSOR_IR_ANALOG)
 void printf_IRSensorAnalogBoardChange();
-#endif //IR_SENSOR_ANALOG
+#endif //defined(FILAMENT_SENSOR) && (FILAMENT_SENSOR_TYPE == FSENSOR_IR_ANALOG)
 
 extern int8_t SilentModeMenu;
-extern uint8_t SilentModeMenu_MMU;
 
-extern bool cancel_heatup;
 extern bool isPrintPaused;
 
 extern uint8_t scrollstuff;
 
 
-void lcd_ignore_click(bool b=true);
 void lcd_commands();
 
 
@@ -178,26 +182,24 @@ void lcd_hw_setup_menu(void);                     // NOT static due to using ins
 
 enum class FilamentAction : uint_least8_t
 {
-    None, //!< 'none' state is used as flag for (filament) autoLoad (i.e. opposite for 'autoLoad' state)
+    None, // no filament action is taking place
     Load,
-    AutoLoad,
+    AutoLoad, // triggered by insertion, cancellable until it transitions to Load
     UnLoad,
     MmuLoad,
     MmuUnLoad,
     MmuEject,
     MmuCut,
     MmuLoadingTest,
-    Preheat,
-    Lay1Cal,
+    Preheat, // triggered by preheat (cancellable)
+    Lay1Cal, // triggered by 1st layer calibration (cancellable)
 };
 
 extern FilamentAction eFilamentAction;
-extern bool bFilamentPreheatState;
-extern bool bFilamentAction;
 void mFilamentItem(uint16_t nTemp,uint16_t nTempBed);
-void mFilamentItemForce();
 void lcd_generic_preheat_menu();
 void unload_filament(float unloadLength);
+void lcd_AutoLoadFilament();
 
 
 void lcd_wait_for_heater();
@@ -230,9 +232,9 @@ enum class WizState : uint8_t
     Selftest,       //!< self test
     Xyz,            //!< xyz calibration
     Z,              //!< z calibration
-#ifdef TEMP_MODEL
-    TempModel,      //!< Temp model calibration
-#endif //TEMP_MODEL
+#ifdef THERMAL_MODEL
+    ThermalModel,   //!< Thermal Model calibration
+#endif //THERMAL_MODEL
     IsFil,          //!< Is filament loaded? First step of 1st layer calibration
     Preheat,        //!< Preheat for any material
     LoadFilCold,    //!< Load filament for MMU
