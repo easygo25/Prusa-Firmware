@@ -1,11 +1,12 @@
-#include "sound.h"
-
-#include "Marlin.h"
-
-//#include <inttypes.h>
-//#include <avr/eeprom.h>
-//#include "eeprom.h"
+#include <Arduino.h>
 #include "backlight.h"
+#include "eeprom.h"
+#include "fastio.h"
+#include "pins.h"
+#include "sound.h"
+#include "system_timer.h"
+#include "Timer.h"
+
 
 
 //eSOUND_MODE eSoundMode=e_SOUND_MODE_LOUD;
@@ -29,7 +30,7 @@ void Sound_Init(void)
 
 void Sound_SaveMode(void)
 {
-eeprom_update_byte((uint8_t*)EEPROM_SOUND_MODE,(uint8_t)eSoundMode);
+eeprom_update_byte_notify((uint8_t*)EEPROM_SOUND_MODE,(uint8_t)eSoundMode);
 }
 
 void Sound_CycleState(void)
@@ -56,7 +57,6 @@ Sound_SaveMode();
 
 //if critical is true then silend and once mode is ignored
 void __attribute__((noinline)) Sound_MakeCustom(uint16_t ms,uint16_t tone_,bool critical){
-    backlight_wake();
      if (critical || eSoundMode != e_SOUND_MODE_SILENT) {
           if(!tone_) {
                WRITE(BEEPER, HIGH);
@@ -127,7 +127,6 @@ static void Sound_DoSound_Blind_Alert(void)
 
  static void Sound_DoSound_Encoder_Move(void)
 {
-    backlight_wake();
 uint8_t nI;
 
  for(nI=0;nI<5;nI++)
@@ -141,7 +140,6 @@ uint8_t nI;
 
 static void Sound_DoSound_Echo(void)
 {
-    backlight_wake();
 uint8_t nI;
 
 for(nI=0;nI<10;nI++)
@@ -163,7 +161,6 @@ WRITE(BEEPER,LOW);
 
 static void Sound_DoSound_Alert(bool bOnce)
 {
-    backlight_wake();
 uint8_t nI,nMax;
 
 nMax=bOnce?1:3;
