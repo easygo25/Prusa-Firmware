@@ -6,9 +6,14 @@
     // on MK3/S/+ we shuffle the timers a bit, thus "_millis" may not equal "millis"
     #include "system_timer.h"
 #else
-    // irrelevant on Buddy FW, just keep "_millis" as "millis"
+// irrelevant on Buddy FW, just keep "_millis" as "millis"
     #include <wiring_time.h>
     #define _millis millis
+    #ifdef UNITTEST
+        #define strncmp_P strncmp
+    #else
+        #include <Marlin/src/core/serial.h>
+    #endif
 #endif
 
 #include <string.h>
@@ -16,30 +21,30 @@
 
 namespace MMU2 {
 
-/// Beware:
+/// Beware - on AVR/MK3S:
 /// Changing the supportedMmuVersion numbers requires patching MSG_DESC_FW_UPDATE_NEEDED and all its related translations by hand.
 ///
 /// The message reads:
-///   "The MMU unit firmware version incompatible with the printer's FW. Update to version 2.1.6."
+///   "MMU FW version is incompatible with printer FW.Update to version 2.1.9."
 ///
 /// Currently, this is not possible to perform automatically at compile time with the existing languages/translations infrastructure.
 /// To save space a "dumb" solution was chosen + a few static_assert checks in errors_list.h preventing the code from compiling when the string doesn't match.
 static constexpr uint8_t supportedMmuFWVersion[3] PROGMEM = { mmuVersionMajor, mmuVersionMinor, mmuVersionPatch };
 
-const uint8_t ProtocolLogic::regs8Addrs[ProtocolLogic::regs8Count] PROGMEM = {
-    8,    // FINDA state
-    0x1b, // Selector slot
-    0x1c, // Idler slot
+const Register ProtocolLogic::regs8Addrs[ProtocolLogic::regs8Count] PROGMEM = {
+    Register::FINDA_State, // FINDA state
+    Register::Set_Get_Selector_Slot, // Selector slot
+    Register::Set_Get_Idler_Slot, // Idler slot
 };
 
-const uint8_t ProtocolLogic::regs16Addrs[ProtocolLogic::regs16Count] PROGMEM = {
-    4,    // MMU errors - aka statistics
-    0x1a, // Pulley position [mm]
+const Register ProtocolLogic::regs16Addrs[ProtocolLogic::regs16Count] PROGMEM = {
+    Register::MMU_Errors, // MMU errors - aka statistics
+    Register::Get_Pulley_Position, // Pulley position [mm]
 };
 
-const uint8_t ProtocolLogic::initRegs8Addrs[ProtocolLogic::initRegs8Count] PROGMEM = {
-    0x0b, // extra load distance [mm]
-    0x14, // pulley slow feedrate [mm/s]
+const Register ProtocolLogic::initRegs8Addrs[ProtocolLogic::initRegs8Count] PROGMEM = {
+    Register::Extra_Load_Distance, // extra load distance [mm]
+    Register::Pulley_Slow_Feedrate, // pulley slow feedrate [mm/s]
 };
 
 void ProtocolLogic::CheckAndReportAsyncEvents() {
@@ -189,7 +194,7 @@ StepStatus ProtocolLogic::ExpectingMessage() {
     }
     if (bytesConsumed != 0) {
         RecordUARTActivity(); // something has happened on the UART, update the timeout record
-        return Processing;    // consumed some bytes, but message still not ready
+        return Processing; // consumed some bytes, but message still not ready
     } else if (Elapsed(linkLayerTimeout) && currentScope != Scope::Stopped) {
         return CommunicationTimeout;
     }
@@ -197,7 +202,11 @@ StepStatus ProtocolLogic::ExpectingMessage() {
 }
 
 void ProtocolLogic::SendMsg(RequestMsg rq) {
+#ifdef __AVR__
+    // Buddy FW cannot use stack-allocated txbuff - DMA doesn't work with CCMRAM
+    // No restrictions on MK3/S/+ though
     uint8_t txbuff[Protocol::MaxRequestSize()];
+#endif
     uint8_t len = Protocol::EncodeRequest(rq, txbuff);
     uart->write(txbuff, len);
     LogRequestMsg(txbuff, len);
@@ -205,7 +214,11 @@ void ProtocolLogic::SendMsg(RequestMsg rq) {
 }
 
 void ProtocolLogic::SendWriteMsg(RequestMsg rq) {
+#ifdef __AVR__
+    // Buddy FW cannot use stack-allocated txbuff - DMA doesn't work with CCMRAM
+    // No restrictions on MK3/S/+ though
     uint8_t txbuff[Protocol::MaxRequestSize()];
+#endif
     uint8_t len = Protocol::EncodeWriteRequest(rq.value, rq.value2, txbuff);
     uart->write(txbuff, len);
     LogRequestMsg(txbuff, len);
@@ -243,7 +256,7 @@ StepStatus ProtocolLogic::ProcessVersionResponse(uint8_t stage) {
                 SendVersion(stage);
             }
         } else {
-            dataTO.Reset(); // got a meaningful response from the MMU, stop data layer timeout tracking
+            ResetCommunicationTimeoutAttempts(); // got a meaningful response from the MMU, stop data layer timeout tracking
             SendVersion(stage + 1);
         }
     }
@@ -254,6 +267,8 @@ StepStatus ProtocolLogic::ScopeStep() {
     if (!ExpectsResponse()) {
         // we are waiting for something
         switch (currentScope) {
+        case Scope::StartSeq:
+            return Processing;
         case Scope::DelayedRestart:
             return DelayedRestartWait();
         case Scope::Idle:
@@ -267,8 +282,9 @@ StepStatus ProtocolLogic::ScopeStep() {
         }
     } else {
         // we are expecting a message
-        if (auto expmsg = ExpectingMessage(); expmsg != MessageReady) // this whole statement takes 12B
+        if (auto expmsg = ExpectingMessage(); expmsg != MessageReady) { // this whole statement takes 12B
             return expmsg;
+        }
 
         // process message
         switch (currentScope) {
@@ -349,6 +365,7 @@ StepStatus ProtocolLogic::ProcessCommandQueryResponse() {
         return Processing;
     case ResponseMsgParamCodes::Error:
         // in case of an error the progress code remains as it has been before
+        progressCode = ProgressCode::ERRWaitingForUser;
         errorCode = static_cast<ErrorCode>(rsp.paramValue);
         // keep on reporting the state of fsensor regularly even in command error state
         // - the MMU checks FINDA and fsensor even while recovering from errors
@@ -365,6 +382,7 @@ StepStatus ProtocolLogic::ProcessCommandQueryResponse() {
         // It can also be an X0 F which means MMU just successfully restarted.
         if (ReqMsg().code == rsp.request.code && ReqMsg().value == rsp.request.value) {
             progressCode = ProgressCode::OK;
+            errorCode = ErrorCode::OK;
             scopeState = ScopeState::Ready;
             rq = RequestMsg(RequestMsgCodes::unknown, 0); // clear the successfully finished request
             return Finished;
@@ -468,9 +486,11 @@ StepStatus ProtocolLogic::IdleStep() {
             case ResponseMsgParamCodes::Processing:
                 // @@TODO we may actually use this branch to report progress of manual operation on the MMU
                 // The MMU sends e.g. X0 P27 after its restart when the user presses an MMU button to move the Selector
+                progressCode = static_cast<ProgressCode>(rsp.paramValue);
                 errorCode = ErrorCode::OK;
                 break;
             default:
+                progressCode = ProgressCode::ERRWaitingForUser;
                 errorCode = static_cast<ErrorCode>(rsp.paramValue);
                 StartReading8bitRegisters(); // continue Idle state without restarting the communication
                 return CommandError;
@@ -531,7 +551,7 @@ ProtocolLogic::ProtocolLogic(MMU2Serial *uart, uint8_t extraLoadDistance, uint8_
     , uart(uart)
     , errorCode(ErrorCode::OK)
     , progressCode(ProgressCode::OK)
-    , buttonCode(NoButton)
+    , buttonCode(Buttons::NoButton)
     , lastFSensor((uint8_t)WhereIsFilament())
     , regIndex(0)
     , retryAttempts(MAX_RETRIES)
@@ -579,8 +599,8 @@ void ProtocolLogic::CutFilament(uint8_t slot) {
     PlanGenericRequest(RequestMsg(RequestMsgCodes::Cut, slot));
 }
 
-void ProtocolLogic::ResetMMU() {
-    PlanGenericRequest(RequestMsg(RequestMsgCodes::Reset, 0));
+void ProtocolLogic::ResetMMU(uint8_t mode /* = 0 */) {
+    PlanGenericRequest(RequestMsg(RequestMsgCodes::Reset, mode));
 }
 
 void ProtocolLogic::Button(uint8_t index) {
@@ -705,14 +725,14 @@ void ProtocolLogic::FormatLastResponseMsgAndClearLRB(char *dst) {
     *dst++ = '<';
     for (uint8_t i = 0; i < lrb; ++i) {
         uint8_t b = lastReceivedBytes[i];
-        if (b < 32)
+        // Check for printable character, including space
+        if (b < 32 || b > 127) {
             b = '.';
-        if (b > 127)
-            b = '.';
+        }
         *dst++ = b;
     }
     *dst = 0; // terminate properly
-    lrb = 0;  // reset the input buffer index in case of a clean message
+    lrb = 0; // reset the input buffer index in case of a clean message
 }
 
 void ProtocolLogic::LogRequestMsg(const uint8_t *txbuff, uint8_t size) {
@@ -721,10 +741,10 @@ void ProtocolLogic::LogRequestMsg(const uint8_t *txbuff, uint8_t size) {
     static char lastMsg[rqs] = "";
     for (uint8_t i = 0; i < size; ++i) {
         uint8_t b = txbuff[i];
-        if (b < 32)
+        // Check for printable character, including space
+        if (b < 32 || b > 127) {
             b = '.';
-        if (b > 127)
-            b = '.';
+        }
         tmp[i + 1] = b;
     }
     tmp[size + 1] = 0;
@@ -759,6 +779,7 @@ void ProtocolLogic::LogResponse() {
 StepStatus ProtocolLogic::SuppressShortDropOuts(const char *msg_P, StepStatus ss) {
     if (dataTO.Record(ss)) {
         LogError(msg_P);
+        ResetCommunicationTimeoutAttempts(); // prepare for another run of consecutive retries before firing an error
         return dataTO.InitialCause();
     } else {
         return Processing; // suppress short drop outs of communication
@@ -793,14 +814,11 @@ StepStatus ProtocolLogic::Step() {
         // We are ok, switching to Idle if there is no potential next request planned.
         // But the trouble is we must report a finished command if the previous command has just been finished
         // i.e. only try to find some planned command if we just finished the Idle cycle
-        bool previousCommandFinished = currentScope == Scope::Command; // @@TODO this is a nasty hack :(
-        if (!ActivatePlannedRequest()) {                               // if nothing is planned, switch to Idle
+        if (!ActivatePlannedRequest()) { // if nothing is planned, switch to Idle
             SwitchToIdle();
-        } else {
+        } else if (ExpectsResponse()) {
             // if the previous cycle was Idle and now we have planned a new command -> avoid returning Finished
-            if (!previousCommandFinished && currentScope == Scope::Command) {
-                currentStatus = Processing;
-            }
+            currentStatus = Processing;
         }
     } break;
     case CommandRejected:
@@ -832,8 +850,9 @@ StepStatus ProtocolLogic::Step() {
 }
 
 uint8_t ProtocolLogic::CommandInProgress() const {
-    if (currentScope != Scope::Command)
+    if (currentScope != Scope::Command) {
         return 0;
+    }
     return (uint8_t)ReqMsg().code;
 }
 
@@ -847,6 +866,11 @@ void ProtocolLogic::DecrementRetryAttempts() {
 void ProtocolLogic::ResetRetryAttempts() {
     SERIAL_ECHOLNPGM("ResetRetryAttempts");
     retryAttempts = MAX_RETRIES;
+}
+
+void ProtocolLogic::ResetCommunicationTimeoutAttempts() {
+    SERIAL_ECHOLNPGM("RSTCommTimeout");
+    dataTO.Reset();
 }
 
 bool DropOutFilter::Record(StepStatus ss) {
