@@ -850,9 +850,9 @@ void factory_reset()
 #if defined(FILAMENT_SENSOR) && defined(FSENSOR_PROBING)
 //! @brief try to check if firmware is on right type of printer
 static void check_if_fw_is_on_right_printer() {
-    if (fsensor.probeOtherType()) {
-        lcd_show_fullscreen_message_and_wait_P(_T(MSG_FW_MK3_DETECTED));
-    }
+//    if (fsensor.probeOtherType()) {
+//        lcd_show_fullscreen_message_and_wait_P(_T(MSG_FW_MK3_DETECTED));
+//    }
 }
 #endif //defined(FILAMENT_SENSOR) && defined(FSENSOR_PROBING)
 

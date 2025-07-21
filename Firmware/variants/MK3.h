@@ -18,13 +18,13 @@
 #define NOZZLE_TYPE "E3Dv6full"
 
 // Printer name
-#define CUSTOM_MENDEL_NAME "Prusa i3 MK3"
+#define CUSTOM_MENDEL_NAME "BMG MK3"
 
 // Electronics
 #define MOTHERBOARD BOARD_EINSY_1_0a
 #define STEEL_SHEET
 //#define NEW_FIRST_LAYER_CAL //from front to back
-#define HAS_SECOND_SERIAL_PORT
+//#define HAS_SECOND_SERIAL_PORT
 
 
 // Uncomment the below for the E3D PT100 temperature sensor (with or without PT100 Amplifier)
@@ -39,7 +39,7 @@
  *------------------------------------*/
 
 // Steps per unit {X,Y,Z,E}
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {100,100,3200/8,280}
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {80.21,80.21,400,830}
 
 // Endstop inverting
 #define X_MIN_ENDSTOP_INVERTING 0 // set to 1 to invert the logic of the endstop.
@@ -66,7 +66,7 @@
 #define Z_MIN_POS 0.15
 
 // Z height correction value
-#define Z_MAX_POS_XYZ_CALIBRATION_CORRECTION 2
+#define Z_MAX_POS_XYZ_CALIBRATION_CORRECTION 9
 
 // Canceled home position
 #define X_CANCEL_POS 50
@@ -148,7 +148,7 @@
 
 // Filament sensor
 #define FILAMENT_SENSOR
-#define FILAMENT_SENSOR_TYPE FSENSOR_PAT9125
+#define FILAMENT_SENSOR_TYPE FSENSOR_IR_ANALOG
 #define FSENSOR_PROBING
 
 // Backlash -
